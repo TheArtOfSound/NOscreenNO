@@ -123,8 +123,8 @@ public class MainActivity extends Activity {
         try {
             String key = seed.getText().toString();
             String input = textBox.getText().toString();
-            if (encrypt) textBox.setText(CryptoEngine.encryptText(input, key));
-            else textBox.setText(CryptoEngine.decryptText(input, key));
+            if (encrypt) textBox.setText(QevCrypto.lockText(input, key));
+            else textBox.setText(QevCrypto.unlockText(input, key));
             setStatus(encrypt ? "Text encrypted." : "Text decrypted.");
         } catch (Exception e) { setStatus("Failed: " + e.getMessage()); }
     }
@@ -153,8 +153,8 @@ public class MainActivity extends Activity {
                 Uri outUri = data.getData();
                 try (InputStream in = getContentResolver().openInputStream(pendingInput);
                      OutputStream out = getContentResolver().openOutputStream(outUri)) {
-                    if (pendingMode == PICK_ENCRYPT) CryptoEngine.encryptStream(in, out, seed.getText().toString());
-                    else CryptoEngine.decryptStream(in, out, seed.getText().toString());
+                    if (pendingMode == PICK_ENCRYPT) QevCrypto.lockStream(in, out, seed.getText().toString());
+                    else QevCrypto.unlockStream(in, out, seed.getText().toString());
                 }
                 setStatus(request == CREATE_ENCRYPTED ? "File encrypted and saved." : "File decrypted and saved.");
             }
