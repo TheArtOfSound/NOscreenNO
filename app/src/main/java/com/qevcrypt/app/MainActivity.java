@@ -2,6 +2,8 @@ package com.qevcrypt.app;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.KeyguardManager;
+import android.app.role.RoleManager;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -35,11 +37,14 @@ public class MainActivity extends Activity {
     private static final int CREATE_ENCRYPTED = 201;
     private static final int CREATE_DECRYPTED = 202;
     private static final int REQ_NOTIFICATIONS = 301;
+    private static final int REQ_DEVICE_UNLOCK = 401;
+    private static final int REQ_SMS_ROLE = 402;
     private static final String PREFS = "qev_shield_prefs";
     private static final String KEY_VAULT = "encrypted_vault_note";
 
     private EditText seed;
     private EditText titleBox;
+    private EditText phoneBox;
     private EditText textBox;
     private TextView status;
     private Uri pendingInput;
@@ -50,7 +55,7 @@ public class MainActivity extends Activity {
         Window w = getWindow();
         w.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE);
         buildUi();
-        setStatus("Ready. Start with Quick Encrypt, Vault Save, or Shield.");
+        setStatus("Ready. Use this as an encrypted composer, vault, file locker, and launcher shell.");
     }
 
     private void buildUi() {
@@ -62,36 +67,45 @@ public class MainActivity extends Activity {
         scroll.addView(root);
 
         root.addView(label("QEV Shield", 32, true));
-        root.addView(note("A practical private-by-default vault, text encryptor, file locker, and visual privacy shield. Local only. No account. No server."));
+        root.addView(note("Encrypted composer, local vault, file locker, visual shield, and optional home launcher. Local-first. No cloud account required."));
 
-        root.addView(section("1. QEV key"));
+        root.addView(section("1. Unlock / QEV key"));
         seed = input("QEV seed / passphrase — required", true, 1);
         root.addView(seed, full());
-        root.addView(note("Use something you can remember. There is no reset, no recovery, and no backdoor."));
+        root.addView(note("Use your own phrase for encryption. Device unlock is a convenience gate; the phrase is still the cryptographic key."));
 
         LinearLayout keyRow = row();
         Button toggleSeed = btn("Show key");
         Button pasteKey = btn("Paste key");
+        Button deviceUnlock = btn("Device unlock");
         keyRow.addView(toggleSeed, weight());
         keyRow.addView(pasteKey, weight());
+        keyRow.addView(deviceUnlock, weight());
         root.addView(keyRow);
         toggleSeed.setOnClickListener(v -> toggleSeedVisibility(toggleSeed));
         pasteKey.setOnClickListener(v -> seed.setText(readClipboard()));
+        deviceUnlock.setOnClickListener(v -> requestDeviceUnlock());
 
-        root.addView(section("2. Private note / payload"));
-        titleBox = input("Label, client, project, wallet, note name...", false, 1);
+        root.addView(section("2. Encrypted message composer"));
+        titleBox = input("Label / thread / client / project", false, 1);
         root.addView(titleBox, full());
-        textBox = input("Paste text, keys, JSON, recovery notes, instructions, private messages...", false, 10);
+        phoneBox = input("Phone number for SMS handoff, optional", false, 1);
+        phoneBox.setInputType(InputType.TYPE_CLASS_PHONE);
+        root.addView(phoneBox, full());
+        textBox = input("Write or paste a message. Encrypt before sending. Paste encrypted text here to decrypt.", false, 10);
         root.addView(textBox, full());
 
         LinearLayout textRow1 = row();
         Button encryptText = btn("Encrypt");
         Button decryptText = btn("Decrypt");
+        Button sendSms = btn("Send SMS");
         textRow1.addView(encryptText, weight());
         textRow1.addView(decryptText, weight());
+        textRow1.addView(sendSms, weight());
         root.addView(textRow1);
         encryptText.setOnClickListener(v -> runText(true));
         decryptText.setOnClickListener(v -> runText(false));
+        sendSms.setOnClickListener(v -> sendEncryptedSmsIntent());
 
         LinearLayout textRow2 = row();
         Button copy = btn("Copy");
@@ -105,8 +119,19 @@ public class MainActivity extends Activity {
         paste.setOnClickListener(v -> { textBox.setText(readClipboard()); setStatus("Pasted clipboard into payload box."); });
         share.setOnClickListener(v -> sharePayload());
 
-        root.addView(section("3. Local vault"));
-        root.addView(note("Vault stores one encrypted note on-device. SaaS-friendly next step would be optional paid sync, team vaults, audit logs, and managed recovery — not enabled here."));
+        root.addView(section("3. Messaging app mode"));
+        root.addView(note("QEV can request the SMS role and can hand encrypted messages to Android SMS. A full default-SMS inbox requires additional protected receiver/service components and carrier/device testing."));
+        LinearLayout msgRow = row();
+        Button requestSms = btn("Request SMS default");
+        Button openSms = btn("Open SMS app");
+        msgRow.addView(requestSms, weight());
+        msgRow.addView(openSms, weight());
+        root.addView(msgRow);
+        requestSms.setOnClickListener(v -> requestSmsRole());
+        openSms.setOnClickListener(v -> openSystemMessaging());
+
+        root.addView(section("4. Local vault"));
+        root.addView(note("Vault stores one encrypted note on-device. SaaS upgrade path: paid sync, team vaults, admin recovery, audit logs, managed keys."));
         LinearLayout vaultRow = row();
         Button saveVault = btn("Save vault");
         Button loadVault = btn("Load vault");
@@ -119,8 +144,8 @@ public class MainActivity extends Activity {
         loadVault.setOnClickListener(v -> loadVault());
         wipeVault.setOnClickListener(v -> wipeVault());
 
-        root.addView(section("4. File locker"));
-        root.addView(note("Encrypts/decrypts files you choose through Android's file picker. This is the honest non-root way Android permits file privacy."));
+        root.addView(section("5. File locker"));
+        root.addView(note("Encrypts/decrypts selected files through Android's file picker. This is the honest non-root way Android permits file privacy."));
         LinearLayout fileRow = row();
         Button encFile = btn("Encrypt file");
         Button decFile = btn("Decrypt .qev");
@@ -130,24 +155,27 @@ public class MainActivity extends Activity {
         encFile.setOnClickListener(v -> pickFile(PICK_ENCRYPT));
         decFile.setOnClickListener(v -> pickFile(PICK_DECRYPT));
 
-        root.addView(section("5. Visual shield"));
-        root.addView(note("A touch-through screen mask for shoulder-surfing and cameras. It makes the screen harder to read but does not encrypt other apps."));
+        root.addView(section("6. Home launcher / visual shield"));
+        root.addView(note("Set QEV Home as your launcher for a private control surface. The visual shield is touch-through and masks the screen, but does not modify other apps' text."));
         LinearLayout shieldRow = row();
+        Button openHome = btn("Open QEV Home");
         Button startOverlay = btn("Start shield");
         Button stopOverlay = btn("Stop shield");
+        shieldRow.addView(openHome, weight());
         shieldRow.addView(startOverlay, weight());
         shieldRow.addView(stopOverlay, weight());
         root.addView(shieldRow);
+        openHome.setOnClickListener(v -> startActivity(new Intent(this, LauncherActivity.class)));
         startOverlay.setOnClickListener(v -> startShield());
         stopOverlay.setOnClickListener(v -> { stopService(new Intent(this, PrivacyOverlayService.class)); setStatus("Visual shield stopped."); });
 
         LinearLayout utilityRow = row();
         Button clear = btn("Clear screen");
-        Button explain = btn("What this can/can't do");
+        Button explain = btn("Limits");
         utilityRow.addView(clear, weight());
         utilityRow.addView(explain, weight());
         root.addView(utilityRow);
-        clear.setOnClickListener(v -> { titleBox.setText(""); textBox.setText(""); setStatus("Screen cleared."); });
+        clear.setOnClickListener(v -> { titleBox.setText(""); phoneBox.setText(""); textBox.setText(""); setStatus("Screen cleared."); });
         explain.setOnClickListener(v -> explainLimits());
 
         status = note("Starting...");
@@ -164,7 +192,7 @@ public class MainActivity extends Activity {
             if (encrypt) {
                 String packed = QevCrypto.lockText(makeEnvelope(input), key);
                 textBox.setText(packed);
-                setStatus("Encrypted. Copy/share it or save it to the vault.");
+                setStatus("Encrypted. Copy/share it or send through SMS handoff.");
             } else {
                 String unlocked = QevCrypto.unlockText(input, key);
                 textBox.setText(stripEnvelope(unlocked));
@@ -173,6 +201,54 @@ public class MainActivity extends Activity {
         } catch (Exception e) {
             setStatus("Failed: " + cleanError(e));
         }
+    }
+
+    private void sendEncryptedSmsIntent() {
+        try {
+            String key = requireSeed();
+            String payload = textBox.getText().toString();
+            if (payload.trim().isEmpty()) { setStatus("Write a message first."); return; }
+            String encrypted = payload.startsWith("qev1:") ? payload : QevCrypto.lockText(makeEnvelope(payload), key);
+            textBox.setText(encrypted);
+            String phone = phoneBox.getText().toString().trim();
+            Uri uri = Uri.parse(phone.isEmpty() ? "smsto:" : "smsto:" + Uri.encode(phone));
+            Intent sms = new Intent(Intent.ACTION_SENDTO, uri);
+            sms.putExtra("sms_body", encrypted);
+            startActivity(sms);
+            setStatus("Encrypted payload handed to Android SMS.");
+        } catch (Exception e) {
+            setStatus("SMS handoff failed: " + cleanError(e));
+        }
+    }
+
+    private void requestSmsRole() {
+        try {
+            if (Build.VERSION.SDK_INT >= 29) {
+                RoleManager rm = (RoleManager) getSystemService(RoleManager.class);
+                if (rm == null || !rm.isRoleAvailable(RoleManager.ROLE_SMS)) { setStatus("SMS role is not available on this device."); return; }
+                if (rm.isRoleHeld(RoleManager.ROLE_SMS)) { setStatus("QEV Shield already holds the SMS role."); return; }
+                startActivityForResult(rm.createRequestRoleIntent(RoleManager.ROLE_SMS), REQ_SMS_ROLE);
+            } else {
+                Intent i = new Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS);
+                startActivity(i);
+            }
+        } catch (Exception e) {
+            setStatus("SMS role request failed. Android may reject this build until full default-SMS receiver components are added.");
+        }
+    }
+
+    private void openSystemMessaging() {
+        Intent i = new Intent(Intent.ACTION_MAIN);
+        i.addCategory(Intent.CATEGORY_APP_MESSAGING);
+        try { startActivity(i); } catch (Exception e) { setStatus("No messaging app shortcut available."); }
+    }
+
+    private void requestDeviceUnlock() {
+        KeyguardManager km = (KeyguardManager) getSystemService(KEYGUARD_SERVICE);
+        if (km == null || !km.isDeviceSecure()) { setStatus("Set a device PIN/password/biometric first in Android Settings."); return; }
+        Intent i = km.createConfirmDeviceCredentialIntent("Unlock QEV Shield", "Confirm your device credential before working with private messages.");
+        if (i == null) { setStatus("Device unlock prompt unavailable."); return; }
+        startActivityForResult(i, REQ_DEVICE_UNLOCK);
     }
 
     private void saveVault() {
@@ -219,6 +295,8 @@ public class MainActivity extends Activity {
 
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
+        if (request == REQ_DEVICE_UNLOCK) { setStatus(result == RESULT_OK ? "Device unlock confirmed." : "Device unlock cancelled."); return; }
+        if (request == REQ_SMS_ROLE) { setStatus(result == RESULT_OK ? "SMS role granted." : "SMS role not granted."); return; }
         if (result != RESULT_OK || data == null) return;
         try {
             if (request == PICK_ENCRYPT || request == PICK_DECRYPT) {
@@ -272,19 +350,19 @@ public class MainActivity extends Activity {
     private String makeEnvelope(String body) {
         String title = titleBox.getText().toString().trim();
         String ts = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date());
-        return "QEV-SHIELD-NOTE\nTITLE:" + title + "\nCREATED:" + ts + "\n---\n" + body;
+        return "QEV-SHIELD-MESSAGE\nTITLE:" + title + "\nCREATED:" + ts + "\n---\n" + body;
     }
 
     private String stripEnvelope(String body) {
         int idx = body.indexOf("\n---\n");
-        if (body.startsWith("QEV-SHIELD-NOTE") && idx >= 0) return body.substring(idx + 5);
+        if (body.startsWith("QEV-SHIELD-") && idx >= 0) return body.substring(idx + 5);
         return body;
     }
 
     private void explainLimits() {
-        String msg = "QEV Shield can encrypt selected text/files, save one local encrypted vault note, block screenshots inside this app, and run a visual privacy mask. It cannot encrypt every app/file on the phone without root or device-owner control. That is an Android security limit, not a missing button.";
+        String msg = "QEV Shield can encrypt selected text/files, act as a private launcher, hand encrypted payloads to SMS, save a local encrypted vault, block screenshots inside QEV, and run a visual privacy mask. A normal Android app cannot rewrite every word inside every other app. True device-wide text replacement needs root, device-owner/MDM, a custom keyboard, or custom ROM-level control.";
         textBox.setText(msg);
-        setStatus("Loaded honest capability explanation.");
+        setStatus("Loaded capability limits.");
     }
 
     private SharedPreferences prefs() { return getSharedPreferences(PREFS, MODE_PRIVATE); }
