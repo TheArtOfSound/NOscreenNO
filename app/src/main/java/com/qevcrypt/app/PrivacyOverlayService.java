@@ -16,35 +16,48 @@ import android.view.View;
 import android.view.WindowManager;
 
 public class PrivacyOverlayService extends Service {
+    private static final String CHANNEL_ID = "qev_privacy_overlay";
+    private static final int NOTIFICATION_ID = 91;
     private WindowManager windowManager;
     private View overlay;
-    private static final String CHANNEL_ID = "qev_privacy_overlay";
 
     @Override public void onCreate() {
         super.onCreate();
-        startForeground(91, notification());
+        startForeground(NOTIFICATION_ID, notification());
         windowManager = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
         overlay = new NoiseOverlay(this);
+
         int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                 : WindowManager.LayoutParams.TYPE_PHONE;
+
+        int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
+
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
                 type,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                        | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                flags,
                 android.graphics.PixelFormat.TRANSLUCENT
         );
         params.gravity = Gravity.TOP | Gravity.START;
         windowManager.addView(overlay, params);
     }
 
-    @Override public int onStartCommand(Intent intent, int flags, int startId) { return START_STICKY; }
+    @Override public int onStartCommand(Intent intent, int flags, int startId) {
+        return START_STICKY;
+    }
 
     @Override public void onDestroy() {
-        if (windowManager != null && overlay != null) windowManager.removeView(overlay);
+        if (windowManager != null && overlay != null) {
+            try { windowManager.removeView(overlay); } catch (Exception ignored) {}
+        }
+        overlay = null;
+        windowManager = null;
         super.onDestroy();
     }
 
@@ -53,37 +66,51 @@ public class PrivacyOverlayService extends Service {
     private Notification notification() {
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel ch = new NotificationChannel(CHANNEL_ID, "QEV Privacy Shield", NotificationManager.IMPORTANCE_LOW);
+            NotificationChannel ch = new NotificationChannel(CHANNEL_ID, "QEV Shield", NotificationManager.IMPORTANCE_LOW);
+            ch.setDescription("Runs the touch-through visual privacy shield.");
             nm.createNotificationChannel(ch);
         }
-        Notification.Builder b = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ? new Notification.Builder(this, CHANNEL_ID) : new Notification.Builder(this);
-        return b.setContentTitle("QEV Privacy Shield active")
-                .setContentText("Visual scramble overlay is masking the screen.")
+        Notification.Builder b = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                ? new Notification.Builder(this, CHANNEL_ID)
+                : new Notification.Builder(this);
+        return b.setContentTitle("QEV Shield active")
+                .setContentText("Touch-through visual mask is running. Return to QEV Shield to stop it.")
                 .setSmallIcon(android.R.drawable.ic_lock_lock)
+                .setOngoing(true)
                 .build();
     }
 
     static class NoiseOverlay extends View {
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        NoiseOverlay(Context c) { super(c); setAlpha(0.86f); }
+        private int frame = 0;
+
+        NoiseOverlay(Context c) {
+            super(c);
+            setAlpha(0.74f);
+        }
 
         @Override protected void onDraw(Canvas c) {
-            int w = getWidth(), h = getHeight();
-            c.drawColor(Color.argb(118, 0, 0, 0));
-            p.setStrokeWidth(3f);
-            for (int y = 0; y < h; y += 14) {
-                int a = (y % 42 == 0) ? 210 : 135;
+            int w = getWidth();
+            int h = getHeight();
+            frame++;
+            c.drawColor(Color.argb(86, 0, 0, 0));
+
+            p.setStrokeWidth(2.5f);
+            for (int y = -40; y < h + 40; y += 16) {
+                int wave = ((y + frame * 7) % 37) - 18;
+                int a = (y % 48 == 0) ? 210 : 120;
                 p.setColor(Color.argb(a, 0, 229, 168));
-                c.drawLine(0, y, w, y + ((y % 5) - 2) * 6, p);
+                c.drawLine(0, y, w, y + wave, p);
             }
-            p.setTextSize(28f);
+
+            p.setTextSize(24f);
             p.setFakeBoldText(true);
-            for (int y = 50; y < h; y += 82) {
-                p.setColor(Color.argb(185, 255, 255, 255));
-                c.drawText("QEV ███ ENCRYPTED VISUAL FIELD ███", 22, y, p);
+            for (int y = 44; y < h; y += 92) {
+                p.setColor(Color.argb(155, 255, 255, 255));
+                c.drawText("QEV SHIELD  ///  PRIVATE VISUAL FIELD", 18 + (frame % 19), y, p);
             }
             p.setFakeBoldText(false);
-            postInvalidateDelayed(120);
+            postInvalidateDelayed(90);
         }
     }
 }
