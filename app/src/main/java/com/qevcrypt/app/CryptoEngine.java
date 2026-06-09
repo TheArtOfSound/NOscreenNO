@@ -60,7 +60,11 @@ public final class CryptoEngine {
         ByteBuffer in = ByteBuffer.wrap(packed);
         byte[] magic = new byte[MAGIC.length];
         in.get(magic);
-        for (int i = 0; i < MAGIC.length; i++) if (magic[i] != MAGIC[i]) throw new GeneralSecurityException("Not a QEV Crypt file/text payload.");
+        for (int i = 0; i < MAGIC.length; i++) {
+            if (magic[i] != MAGIC[i]) {
+                throw new GeneralSecurityException("Not a QEV Crypt file/text payload.");
+            }
+        }
         byte[] salt = new byte[SALT_LEN];
         byte[] iv = new byte[IV_LEN];
         in.get(salt);
