@@ -1,0 +1,1 @@
+Trigger Android CI for QEV Shield v2 SaaS-friendly MVP.
