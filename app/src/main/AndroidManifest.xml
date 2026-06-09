@@ -31,6 +31,18 @@
         </activity>
 
         <service
+            android:name=".QevKeyboardService"
+            android:permission="android.permission.BIND_INPUT_METHOD"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/qev_keyboard" />
+        </service>
+
+        <service
             android:name=".PrivacyOverlayService"
             android:exported="false"
             android:foregroundServiceType="specialUse">
