@@ -25,7 +25,7 @@ public class PrivacyOverlayService extends Service {
         super.onCreate();
         startForeground(NOTIFICATION_ID, notification());
         windowManager = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
-        overlay = new NoiseOverlay(this);
+        overlay = new PrivacyGlassOverlay(this);
 
         int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -74,43 +74,51 @@ public class PrivacyOverlayService extends Service {
                 ? new Notification.Builder(this, CHANNEL_ID)
                 : new Notification.Builder(this);
         return b.setContentTitle("QEV Shield active")
-                .setContentText("Touch-through visual mask is running. Return to QEV Shield to stop it.")
+                .setContentText("Subtle privacy glass is running. Return to QEV Shield to stop it.")
                 .setSmallIcon(android.R.drawable.ic_lock_lock)
                 .setOngoing(true)
                 .build();
     }
 
-    static class NoiseOverlay extends View {
+    static class PrivacyGlassOverlay extends View {
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         private int frame = 0;
 
-        NoiseOverlay(Context c) {
+        PrivacyGlassOverlay(Context c) {
             super(c);
-            setAlpha(0.74f);
+            setAlpha(0.46f);
         }
 
         @Override protected void onDraw(Canvas c) {
             int w = getWidth();
             int h = getHeight();
             frame++;
-            c.drawColor(Color.argb(86, 0, 0, 0));
 
-            p.setStrokeWidth(2.5f);
-            for (int y = -40; y < h + 40; y += 16) {
-                int wave = ((y + frame * 7) % 37) - 18;
-                int a = (y % 48 == 0) ? 210 : 120;
-                p.setColor(Color.argb(a, 0, 229, 168));
-                c.drawLine(0, y, w, y + wave, p);
+            // Soft privacy tint: readable to the user, harder for shoulder-surfing/cameras.
+            c.drawColor(Color.argb(34, 0, 0, 0));
+
+            // Sparse scan lines instead of full debug-wall effect.
+            p.setStrokeWidth(1.2f);
+            p.setColor(Color.argb(82, 0, 229, 168));
+            for (int y = (frame % 24); y < h; y += 24) {
+                c.drawLine(0, y, w, y, p);
             }
 
-            p.setTextSize(24f);
+            // Subtle diagonal glass grain.
+            p.setStrokeWidth(0.9f);
+            p.setColor(Color.argb(38, 255, 255, 255));
+            for (int x = -h; x < w; x += 92) {
+                c.drawLine(x, h, x + h, 0, p);
+            }
+
+            // One small watermark, not repeated across the entire phone.
+            p.setTextSize(20f);
             p.setFakeBoldText(true);
-            for (int y = 44; y < h; y += 92) {
-                p.setColor(Color.argb(155, 255, 255, 255));
-                c.drawText("QEV SHIELD  ///  PRIVATE VISUAL FIELD", 18 + (frame % 19), y, p);
-            }
+            p.setColor(Color.argb(135, 255, 255, 255));
+            c.drawText("QEV Shield active", 22, h - 34, p);
             p.setFakeBoldText(false);
-            postInvalidateDelayed(90);
+
+            postInvalidateDelayed(140);
         }
     }
 }
