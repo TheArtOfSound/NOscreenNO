@@ -75,7 +75,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
-          NOTES="**QEV Shield $VERSION** — keep everything private on Android.
+          NOTES="**noscreeno $VERSION** — keep everything private on Android. A Qira product.
 
           Install: download \`NOscreenNO.apk\` below on an Android 8.0+ phone, open it, and allow installing from your browser when prompted.
 
@@ -84,14 +84,14 @@ jobs:
           - Screenshot-blocked secure window + visual privacy shield
           - No account, no server, no telemetry
 
-          Website: https://theartofsound.github.io/NOscreenNO/"
+          Website: https://noscreeno.imagineqira.com/"
           if gh release view "$VERSION" >/dev/null 2>&1; then
             echo "Release $VERSION exists — updating the APK asset."
             gh release upload "$VERSION" NOscreenNO.apk --clobber
           else
             echo "Creating release $VERSION."
             gh release create "$VERSION" NOscreenNO.apk \
-              --title "QEV Shield $VERSION" \
+              --title "noscreeno $VERSION" \
               --notes "$NOTES" \
               --latest
           fi

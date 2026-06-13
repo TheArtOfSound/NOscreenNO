@@ -1,16 +1,16 @@
 <div align="center">
 
-# NOscreenNO — QEV Shield
+# noscreeno
 
-**Keep everything private on Android.**
+**Keep everything private on Android.** &nbsp;·&nbsp; a [Qira](https://imagineqira.com) product
 
 A local-only encryption toolkit: encrypt text & files, store an encrypted vault,
 block screenshots, and drop a privacy mask over your screen. No account. No server. No telemetry.
 
 [![Android CI](https://github.com/TheArtOfSound/NOscreenNO/actions/workflows/android-ci.yml/badge.svg)](https://github.com/TheArtOfSound/NOscreenNO/actions/workflows/android-ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-00E5A8.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-34d8f0.svg)](LICENSE)
 
-### [⬇ Download the APK](https://github.com/TheArtOfSound/NOscreenNO/releases/latest/download/NOscreenNO.apk) &nbsp;•&nbsp; [🌐 Website](https://theartofsound.github.io/NOscreenNO/)
+### [⬇ Download the APK](https://github.com/TheArtOfSound/NOscreenNO/releases/latest/download/NOscreenNO.apk) &nbsp;•&nbsp; [🌐 noscreeno.imagineqira.com](https://noscreeno.imagineqira.com)
 
 </div>
 
@@ -20,7 +20,7 @@ block screenshots, and drop a privacy mask over your screen. No account. No serv
 
 | Feature | What happens |
 | --- | --- |
-| 🔑 **QEV key** | You pick a passphrase (8+ chars). Everything is derived from it. No reset, no recovery, no backdoor. |
+| 🔑 **Your key** | You pick a passphrase (8+ chars). Everything is derived from it. No reset, no recovery, no backdoor. |
 | 📝 **Text encryptor** | Encrypt/decrypt any text — notes, keys, seed phrases, messages — and copy or share the ciphertext. |
 | 🗄️ **Local vault** | Save one encrypted note on-device. It never leaves the phone. |
 | 📁 **File locker** | Encrypt/decrypt files you pick through Android's file picker into `.qev` files. |
@@ -40,7 +40,7 @@ It is honest about its limits: it can encrypt the text and files **you choose** 
 
 1. **[Download `NOscreenNO.apk`](https://github.com/TheArtOfSound/NOscreenNO/releases/latest/download/NOscreenNO.apk)** on your Android phone (Android 8.0 / API 26 or newer).
 2. Open it. Android will ask to **allow installing from this source** — approve it (Settings → *Install unknown apps*).
-3. Launch **QEV Shield**, set a passphrase you'll remember, and start encrypting.
+3. Launch **noscreeno**, set a passphrase you'll remember, and start encrypting.
 
 > Distributed outside the Play Store, so you install it yourself. The APK is built and signed automatically by GitHub Actions ([release workflow](.github/workflows/release.yml)) — you can audit exactly how every release is produced.
 
@@ -71,4 +71,4 @@ site/                          # the one-page website (deployed to GitHub Pages)
 
 ## License
 
-[MIT](LICENSE) © 2026 TheArtOfSound
+[MIT](LICENSE) © 2026 Qira LLC · [imagineqira.com](https://imagineqira.com)
