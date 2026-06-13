@@ -3,33 +3,41 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>NOscreenNO — Keep everything private on Android</title>
-<meta name="description" content="QEV Shield: a local-only Android app to encrypt text & files, store an encrypted vault, block screenshots, and shield your screen. No account, no server, no telemetry. AES-256-GCM." />
-<meta name="theme-color" content="#07090E" />
+<title>noscreeno — Keep everything private on Android | Qira</title>
+<meta name="description" content="noscreeno is a local-only Android app by Qira to encrypt text & files, store an encrypted vault, block screenshots, and shield your screen. No account, no server, no telemetry. AES-256-GCM." />
+<meta name="author" content="Qira LLC" />
+<meta name="theme-color" content="#070b14" />
 <link rel="canonical" href="https://noscreeno.imagineqira.com/" />
 
 <!-- Open Graph / social -->
 <meta property="og:type" content="website" />
-<meta property="og:title" content="NOscreenNO — QEV Shield" />
-<meta property="og:description" content="Keep everything private on Android. Local-only encryption for text, files, and your screen. No account. No server." />
+<meta property="og:title" content="noscreeno — Keep everything private on Android" />
+<meta property="og:description" content="A Qira product. Local-only encryption for text, files, and your screen. No account. No server." />
 <meta property="og:url" content="https://noscreeno.imagineqira.com/" />
+<meta property="og:site_name" content="Qira" />
 <meta name="twitter:card" content="summary" />
 
-<!-- Inline SVG favicon: the shield + keyhole -->
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 108 108'%3E%3Crect width='108' height='108' rx='24' fill='%230A0D14'/%3E%3Cpath fill='%2300E5A8' fill-rule='evenodd' d='M54 27 80 36 80 55C80 70.5 68 81 54 86.5 40 81 28 70.5 28 55L28 36ZM54 46m-6 0a6 6 0 1 0 12 0a6 6 0 1 0-12 0ZM50.5 50 57.5 50 59.5 67 48.5 67Z'/%3E%3C/svg%3E" />
+<!-- Inline SVG favicon: the noscreeno shield + keyhole, in Qira cyan -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 108 108'%3E%3Crect width='108' height='108' rx='24' fill='%23070b14'/%3E%3Cpath fill='%2334d8f0' fill-rule='evenodd' d='M54 27 80 36 80 55C80 70.5 68 81 54 86.5 40 81 28 70.5 28 55L28 36ZM54 46m-6 0a6 6 0 1 0 12 0a6 6 0 1 0-12 0ZM50.5 50 57.5 50 59.5 67 48.5 67Z'/%3E%3C/svg%3E" />
 
 <style>
   :root {
-    --bg: #07090E;
-    --bg-soft: #0C1018;
-    --card: #11151F;
-    --line: #1E2533;
-    --text: #EAEEF3;
-    --muted: #9AA6B2;
-    --accent: #00E5A8;
-    --accent-dim: rgba(0, 229, 168, 0.12);
+    /* Qira brand tokens */
+    --bg: #070b14;
+    --bg-soft: #0a1020;
+    --card: #0d1322;
+    --line: #1b2740;
+    --line-strong: #2a3a5c;
+    --text: #f4f1ea;
+    --muted: #9fb0c8;
+    --accent: #34d8f0;          /* Qira cyan */
+    --accent-bright: #6cf0ff;
+    --accent-dim: rgba(52, 216, 240, 0.12);
+    --gold: #c8a84b;
+    --indigo: #7c5cff;
+    --ink: #04161c;             /* dark text that sits on the cyan accent */
     --radius: 16px;
-    --maxw: 1040px;
+    --maxw: 1080px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
@@ -40,8 +48,8 @@
     line-height: 1.6;
     overflow-x: hidden;
     background-image:
-      radial-gradient(900px 500px at 80% -10%, rgba(0, 229, 168, 0.10), transparent 60%),
-      radial-gradient(700px 500px at -10% 10%, rgba(0, 229, 168, 0.06), transparent 55%);
+      radial-gradient(900px 520px at 80% -10%, rgba(52, 216, 240, 0.12), transparent 60%),
+      radial-gradient(760px 520px at -10% 8%, rgba(124, 92, 255, 0.10), transparent 55%);
     background-attachment: fixed;
   }
   a { color: inherit; text-decoration: none; }
@@ -52,41 +60,52 @@
   nav {
     position: sticky; top: 0; z-index: 50;
     backdrop-filter: blur(10px);
-    background: rgba(7, 9, 14, 0.72);
+    background: rgba(7, 11, 20, 0.72);
     border-bottom: 1px solid var(--line);
   }
   .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 60px; }
-  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .2px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -.2px; font-size: 18px; }
   .brand svg { width: 26px; height: 26px; }
   .nav-links { display: flex; gap: 22px; align-items: center; }
   .nav-links a { color: var(--muted); font-size: 14px; }
   .nav-links a:hover { color: var(--text); }
   .nav-cta {
-    background: var(--accent); color: #042018 !important; font-weight: 700;
+    background: var(--accent); color: var(--ink) !important; font-weight: 700;
     padding: 8px 16px; border-radius: 10px; font-size: 14px;
   }
+  .nav-cta:hover { background: var(--accent-bright); }
 
   /* Hero */
-  .hero { text-align: center; padding-top: 72px; padding-bottom: 40px; }
-  .hero .logo { width: 92px; height: 92px; margin: 0 auto 22px; display: block;
-    filter: drop-shadow(0 8px 30px rgba(0, 229, 168, 0.25)); }
-  .eyebrow {
-    display: inline-block; font-size: 13px; letter-spacing: 2px; text-transform: uppercase;
-    color: var(--accent); border: 1px solid var(--accent-dim); background: var(--accent-dim);
-    padding: 5px 14px; border-radius: 999px; margin-bottom: 20px;
+  .hero { text-align: center; padding-top: 70px; padding-bottom: 42px; }
+  .hero .logo { width: 88px; height: 88px; margin: 0 auto 22px; display: block;
+    filter: drop-shadow(0 8px 34px rgba(52, 216, 240, 0.34)); }
+  .qira-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 13px; letter-spacing: .4px; color: var(--muted);
+    border: 1px solid var(--line-strong); background: rgba(255,255,255,0.02);
+    padding: 5px 14px 5px 7px; border-radius: 999px; margin-bottom: 22px;
+    transition: border-color .15s ease, color .15s ease;
   }
-  h1 { font-size: clamp(34px, 7vw, 60px); line-height: 1.05; letter-spacing: -1px; font-weight: 800; }
-  h1 .accent { color: var(--accent); }
-  .tagline { font-size: clamp(17px, 3.5vw, 21px); color: var(--muted); max-width: 620px; margin: 20px auto 0; }
-  .cta-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 34px; }
+  .qira-badge:hover { border-color: var(--accent); color: var(--text); }
+  .qira-badge img { width: 20px; height: 20px; border-radius: 50%; }
+  .qira-badge b { color: var(--text); font-weight: 700; }
+  .wordmark {
+    font-size: clamp(46px, 11vw, 92px); line-height: 1; letter-spacing: -3px; font-weight: 800;
+    background: linear-gradient(115deg, var(--accent-bright) 10%, var(--indigo) 95%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    padding-bottom: 6px;
+  }
+  .lede { font-size: clamp(18px, 3.6vw, 23px); color: var(--text); font-weight: 600; margin-top: 16px; }
+  .tagline { font-size: clamp(15px, 2.6vw, 17px); color: var(--muted); max-width: 600px; margin: 12px auto 0; }
+  .cta-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 32px; }
   .btn {
     display: inline-flex; align-items: center; gap: 10px;
     padding: 15px 28px; border-radius: 12px; font-weight: 700; font-size: 16px;
     border: 1px solid transparent; transition: transform .12s ease, box-shadow .12s ease, background .12s;
   }
-  .btn-primary { background: var(--accent); color: #042018; box-shadow: 0 10px 34px rgba(0, 229, 168, 0.28); }
-  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 14px 40px rgba(0, 229, 168, 0.4); }
-  .btn-ghost { background: transparent; border-color: var(--line); color: var(--text); }
+  .btn-primary { background: var(--accent); color: var(--ink); box-shadow: 0 10px 34px rgba(52, 216, 240, 0.30); }
+  .btn-primary:hover { transform: translateY(-2px); background: var(--accent-bright); box-shadow: 0 14px 42px rgba(52, 216, 240, 0.42); }
+  .btn-ghost { background: transparent; border-color: var(--line-strong); color: var(--text); }
   .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
   .fineprint { margin-top: 18px; font-size: 13px; color: var(--muted); }
   .fineprint b { color: var(--text); font-weight: 600; }
@@ -108,7 +127,7 @@
     background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
     padding: 26px; transition: border-color .15s ease, transform .15s ease;
   }
-  .card:hover { border-color: rgba(0, 229, 168, 0.4); transform: translateY(-3px); }
+  .card:hover { border-color: rgba(52, 216, 240, 0.45); transform: translateY(-3px); }
   .card .ico { width: 42px; height: 42px; border-radius: 11px; background: var(--accent-dim);
     display: grid; place-items: center; font-size: 22px; margin-bottom: 16px; }
   .card h3 { font-size: 18px; margin-bottom: 8px; }
@@ -127,12 +146,12 @@
   .step::before {
     counter-increment: step; content: counter(step);
     position: absolute; top: -16px; left: 22px;
-    width: 34px; height: 34px; border-radius: 9px; background: var(--accent); color: #042018;
+    width: 34px; height: 34px; border-radius: 9px; background: var(--accent); color: var(--ink);
     display: grid; place-items: center; font-weight: 800; font-size: 16px;
   }
   .step h3 { margin: 10px 0 8px; font-size: 17px; }
   .step p { color: var(--muted); font-size: 15px; }
-  .step code { background: #0a0d14; border: 1px solid var(--line); padding: 1px 6px; border-radius: 6px; font-size: 13px; color: var(--accent); }
+  .step code { background: #0a1020; border: 1px solid var(--line); padding: 1px 6px; border-radius: 6px; font-size: 13px; color: var(--accent); }
 
   /* Honest limits callout */
   .callout {
@@ -149,14 +168,20 @@
 
   /* Footer */
   footer { border-top: 1px solid var(--line); padding: 34px 0; color: var(--muted); font-size: 14px; }
-  .foot-inner { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 14px; align-items: center; }
-  .foot-inner a { color: var(--muted); } .foot-inner a:hover { color: var(--accent); }
-  .disclaimer { font-size: 12px; color: #5e6b78; margin-top: 14px; max-width: 720px; }
+  .foot-inner { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; align-items: center; }
+  .foot-brand { display: inline-flex; align-items: center; gap: 10px; }
+  .foot-brand img { width: 28px; height: 28px; border-radius: 50%; }
+  .foot-brand b { color: var(--text); }
+  .foot-inner a:hover { color: var(--accent); }
+  .foot-links a { color: var(--muted); }
+  .disclaimer { font-size: 12px; color: #6c7c97; margin-top: 16px; max-width: 760px; line-height: 1.7; }
+  .disclaimer a { color: var(--muted); }
 
   @media (max-width: 620px) {
     .nav-links a:not(.nav-cta) { display: none; }
     section { padding: 48px 0; }
     .btn { width: 100%; justify-content: center; }
+    .foot-inner { justify-content: center; text-align: center; }
   }
 </style>
 </head>
@@ -165,8 +190,8 @@
 <nav>
   <div class="wrap nav-inner">
     <a class="brand" href="#top">
-      <svg viewBox="0 0 108 108" aria-hidden="true"><rect width="108" height="108" rx="24" fill="#0A0D14"/><path fill="#00E5A8" fill-rule="evenodd" d="M54 27 80 36 80 55C80 70.5 68 81 54 86.5 40 81 28 70.5 28 55L28 36ZM54 46m-6 0a6 6 0 1 0 12 0a6 6 0 1 0-12 0ZM50.5 50 57.5 50 59.5 67 48.5 67Z"/></svg>
-      NOscreenNO
+      <svg viewBox="0 0 108 108" aria-hidden="true"><rect width="108" height="108" rx="24" fill="#0a1020"/><path fill="#34d8f0" fill-rule="evenodd" d="M54 27 80 36 80 55C80 70.5 68 81 54 86.5 40 81 28 70.5 28 55L28 36ZM54 46m-6 0a6 6 0 1 0 12 0a6 6 0 1 0-12 0ZM50.5 50 57.5 50 59.5 67 48.5 67Z"/></svg>
+      noscreeno
     </a>
     <div class="nav-links">
       <a href="#features">Features</a>
@@ -179,9 +204,10 @@
 
 <a id="top"></a>
 <header class="hero wrap">
-  <svg class="logo" viewBox="0 0 108 108" aria-hidden="true"><rect width="108" height="108" rx="26" fill="#0A0D14"/><path fill="#00E5A8" fill-rule="evenodd" d="M54 27 80 36 80 55C80 70.5 68 81 54 86.5 40 81 28 70.5 28 55L28 36ZM54 46m-6 0a6 6 0 1 0 12 0a6 6 0 1 0-12 0ZM50.5 50 57.5 50 59.5 67 48.5 67Z"/></svg>
-  <span class="eyebrow">QEV Shield</span>
-  <h1>Keep everything<br><span class="accent">private</span> on Android.</h1>
+  <svg class="logo" viewBox="0 0 108 108" aria-hidden="true"><rect width="108" height="108" rx="26" fill="#0a1020"/><path fill="#34d8f0" fill-rule="evenodd" d="M54 27 80 36 80 55C80 70.5 68 81 54 86.5 40 81 28 70.5 28 55L28 36ZM54 46m-6 0a6 6 0 1 0 12 0a6 6 0 1 0-12 0ZM50.5 50 57.5 50 59.5 67 48.5 67Z"/></svg>
+  <a class="qira-badge" href="https://imagineqira.com" target="_blank" rel="noopener"><img src="./assets/qira-icon.png" alt="Qira" /> a <b>Qira</b> product</a>
+  <h1 class="wordmark">noscreeno</h1>
+  <p class="lede">Keep everything private on Android.</p>
   <p class="tagline">Encrypt your text and files, lock notes in a private vault, and shield your screen — all on your device. No account. No server. No telemetry.</p>
   <div class="cta-row">
     <a class="btn btn-primary" href="./NOscreenNO.apk" download="NOscreenNO.apk">
@@ -207,10 +233,10 @@
 <section id="features" class="wrap">
   <div class="sec-head">
     <h2>Six tools, one passphrase</h2>
-    <p>Pick a QEV key you'll remember. Everything below is derived from it and never leaves your phone.</p>
+    <p>Pick a passphrase you'll remember. Everything below is derived from it and never leaves your phone.</p>
   </div>
   <div class="grid">
-    <div class="card"><div class="ico">🔑</div><h3>Your QEV key</h3><p>One passphrase (8+ characters) unlocks everything. There is no reset, no recovery, and no backdoor — by design.</p></div>
+    <div class="card"><div class="ico">🔑</div><h3>Your key</h3><p>One passphrase (8+ characters) unlocks everything. There is no reset, no recovery, and no backdoor — by design.</p></div>
     <div class="card"><div class="ico">📝</div><h3>Text encryptor</h3><p>Encrypt notes, keys, seed phrases, or messages into a sealed payload you can copy, share, or paste anywhere.</p></div>
     <div class="card"><div class="ico">🗄️</div><h3>Local vault</h3><p>Save one encrypted note directly on the device. It stays on-device and is unreadable without your key.</p></div>
     <div class="card"><div class="ico">📁</div><h3>File locker</h3><p>Encrypt and decrypt any file you choose through Android's file picker, into portable <code>.qev</code> files.</p></div>
@@ -243,7 +269,7 @@
     <div class="step"><h3>Download the APK</h3><p>Tap <b>Download APK</b> (Android 8.0+). If your browser warns <i>"this type of file can harm your device,"</i> tap <code>Download anyway</code> — that shows for every <code>.apk</code>.</p></div>
     <div class="step"><h3>Open the file</h3><p>Tap the downloaded <code>NOscreenNO.apk</code>. If prompted, turn on <code>Allow from this source</code> so your browser can install it — a one-time toggle.</p></div>
     <div class="step"><h3>Past Play Protect</h3><p>If Play Protect appears, tap <code>More details → Install anyway</code>. It flags unknown developers, not actual malware.</p></div>
-    <div class="step"><h3>Open &amp; set your key</h3><p>Launch <b>QEV Shield</b>, choose a passphrase you'll remember, and start encrypting.</p></div>
+    <div class="step"><h3>Open &amp; set your key</h3><p>Launch <b>noscreeno</b>, choose a passphrase you'll remember, and start encrypting.</p></div>
   </div>
   <p style="text-align:center; color:var(--muted); font-size:14px; margin-top:26px;">Download blocked, or prefer the source? <a style="color:var(--accent); border-bottom:1px solid var(--accent-dim)" href="https://github.com/TheArtOfSound/NOscreenNO/releases/latest/download/NOscreenNO.apk">Get it directly from GitHub</a>.</p>
 </section>
@@ -251,7 +277,7 @@
 <section class="wrap">
   <div class="callout">
     <h3>Honest about what it can't do</h3>
-    <p>QEV Shield encrypts the text and files <b>you choose</b> and locks down its own window. It cannot silently encrypt every other app or file on your phone — that needs root or device-owner control, which is an Android security boundary, not a missing button. No app distributed this way can truthfully promise otherwise.</p>
+    <p>noscreeno encrypts the text and files <b>you choose</b> and locks down its own window. It cannot silently encrypt every other app or file on your phone — that needs root or device-owner control, which is an Android security boundary, not a missing button. No app distributed this way can truthfully promise otherwise.</p>
   </div>
 </section>
 
@@ -269,10 +295,13 @@
 <footer>
   <div class="wrap">
     <div class="foot-inner">
-      <span>© <span id="yr">2026</span> TheArtOfSound · <a href="https://github.com/TheArtOfSound/NOscreenNO/blob/main/LICENSE">MIT License</a></span>
-      <span><a href="https://github.com/TheArtOfSound/NOscreenNO">GitHub</a> · <a href="https://github.com/TheArtOfSound/NOscreenNO/releases/latest">Releases</a></span>
+      <a class="foot-brand" href="https://imagineqira.com" target="_blank" rel="noopener">
+        <img src="./assets/qira-icon.png" alt="Qira" />
+        <span>a <b>Qira</b> product</span>
+      </a>
+      <span class="foot-links"><a href="https://github.com/TheArtOfSound/NOscreenNO">GitHub</a> · <a href="https://github.com/TheArtOfSound/NOscreenNO/releases/latest">Releases</a> · <a href="https://github.com/TheArtOfSound/NOscreenNO/blob/main/LICENSE">MIT License</a></span>
     </div>
-    <p class="disclaimer">NOscreenNO / QEV Shield is an independent open-source project and is not affiliated with or endorsed by Google or Android. Choose a passphrase you can remember — there is no recovery if you lose it.</p>
+    <p class="disclaimer">© <span id="yr">2026</span> Qira LLC · Phoenix, AZ &amp; Littleton, CO · <a href="https://imagineqira.com">imagineqira.com</a><br/>noscreeno is an open-source Qira product. Not affiliated with or endorsed by Google or Android. Choose a passphrase you can remember — there is no recovery if you lose it.</p>
   </div>
 </footer>
 
