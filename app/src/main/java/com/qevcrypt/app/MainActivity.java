@@ -95,6 +95,12 @@ public class MainActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         scroll.addView(root);
         setContentView(scroll);
+        // Android 15 (targetSdk 35) is edge-to-edge by default: pad below the status
+        // bar and above the nav bar so the header/footer aren't under the system bars.
+        scroll.setOnApplyWindowInsetsListener((v, insets) -> {
+            v.setPadding(0, insets.getSystemWindowInsetTop(), 0, insets.getSystemWindowInsetBottom());
+            return insets;
+        });
     }
 
     @Override protected void onResume() {
