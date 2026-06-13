@@ -61,7 +61,7 @@ public class MainActivity extends Activity {
         root.setBackgroundColor(Color.rgb(7, 9, 14));
         scroll.addView(root);
 
-        root.addView(label("QEV Shield", 32, true));
+        root.addView(label("noscreeno", 32, true));
         root.addView(note("A practical private-by-default vault, text encryptor, file locker, and visual privacy shield. Local only. No account. No server."));
 
         root.addView(section("1. QEV key"));
@@ -204,7 +204,7 @@ public class MainActivity extends Activity {
         if (payload.trim().isEmpty()) { setStatus("Nothing to share."); return; }
         Intent send = new Intent(Intent.ACTION_SEND);
         send.setType("text/plain");
-        send.putExtra(Intent.EXTRA_SUBJECT, titleBox.getText().toString().trim().isEmpty() ? "QEV Shield payload" : titleBox.getText().toString().trim());
+        send.putExtra(Intent.EXTRA_SUBJECT, titleBox.getText().toString().trim().isEmpty() ? "noscreeno payload" : titleBox.getText().toString().trim());
         send.putExtra(Intent.EXTRA_TEXT, payload);
         startActivity(Intent.createChooser(send, "Share encrypted payload"));
     }
@@ -282,7 +282,7 @@ public class MainActivity extends Activity {
     }
 
     private void explainLimits() {
-        String msg = "QEV Shield can encrypt selected text/files, save one local encrypted vault note, block screenshots inside this app, and run a visual privacy mask. It cannot encrypt every app/file on the phone without root or device-owner control. That is an Android security limit, not a missing button.";
+        String msg = "noscreeno can encrypt selected text/files, save one local encrypted vault note, block screenshots inside this app, and run a visual privacy mask. It cannot encrypt every app/file on the phone without root or device-owner control. That is an Android security limit, not a missing button.";
         textBox.setText(msg);
         setStatus("Loaded honest capability explanation.");
     }

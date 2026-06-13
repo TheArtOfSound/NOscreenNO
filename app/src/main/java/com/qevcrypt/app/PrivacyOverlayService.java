@@ -66,15 +66,15 @@ public class PrivacyOverlayService extends Service {
     private Notification notification() {
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel ch = new NotificationChannel(CHANNEL_ID, "QEV Shield", NotificationManager.IMPORTANCE_LOW);
+            NotificationChannel ch = new NotificationChannel(CHANNEL_ID, "noscreeno", NotificationManager.IMPORTANCE_LOW);
             ch.setDescription("Runs the touch-through visual privacy shield.");
             nm.createNotificationChannel(ch);
         }
         Notification.Builder b = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 ? new Notification.Builder(this, CHANNEL_ID)
                 : new Notification.Builder(this);
-        return b.setContentTitle("QEV Shield active")
-                .setContentText("Subtle privacy glass is running. Return to QEV Shield to stop it.")
+        return b.setContentTitle("noscreeno shield active")
+                .setContentText("Subtle privacy glass is running. Return to noscreeno to stop it.")
                 .setSmallIcon(android.R.drawable.ic_lock_lock)
                 .setOngoing(true)
                 .build();
@@ -115,7 +115,7 @@ public class PrivacyOverlayService extends Service {
             p.setTextSize(20f);
             p.setFakeBoldText(true);
             p.setColor(Color.argb(135, 255, 255, 255));
-            c.drawText("QEV Shield active", 22, h - 34, p);
+            c.drawText("noscreeno active", 22, h - 34, p);
             p.setFakeBoldText(false);
 
             postInvalidateDelayed(140);

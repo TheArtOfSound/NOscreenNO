@@ -6,7 +6,7 @@
     <!-- Shield with a punched-out keyhole. evenOdd makes the keyhole show the
          background layer through it. Content sits within the 72dp safe zone. -->
     <path
-        android:fillColor="#00E5A8"
+        android:fillColor="#34d8f0"
         android:fillType="evenOdd"
         android:pathData="M54,27 L80,36 L80,55 C80,70.5 68,81 54,86.5 C40,81 28,70.5 28,55 L28,36 Z
                           M54,46 m-6,0 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0 Z
