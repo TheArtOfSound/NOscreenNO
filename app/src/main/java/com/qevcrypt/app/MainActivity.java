@@ -21,6 +21,7 @@ import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -98,9 +99,22 @@ public class MainActivity extends Activity {
         // Android 15 (targetSdk 35) is edge-to-edge by default: pad below the status
         // bar and above the nav bar so the header/footer aren't under the system bars.
         scroll.setOnApplyWindowInsetsListener((v, insets) -> {
-            v.setPadding(0, insets.getSystemWindowInsetTop(), 0, insets.getSystemWindowInsetBottom());
+            int[] tb = barInsets(insets);
+            v.setPadding(0, tb[0], 0, tb[1]);
             return insets;
         });
+    }
+
+    /** {status-bar top, nav-bar bottom} insets — modern API on R+, deprecated below it. */
+    private int[] barInsets(WindowInsets insets) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) return barInsetsR(insets);
+        return new int[]{insets.getSystemWindowInsetTop(), insets.getSystemWindowInsetBottom()};
+    }
+
+    @android.annotation.TargetApi(Build.VERSION_CODES.R)
+    private int[] barInsetsR(WindowInsets insets) {
+        android.graphics.Insets b = insets.getInsets(WindowInsets.Type.systemBars());
+        return new int[]{b.top, b.bottom};
     }
 
     @Override protected void onResume() {
