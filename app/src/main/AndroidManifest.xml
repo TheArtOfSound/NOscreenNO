@@ -7,6 +7,8 @@
     <application
         android:theme="@style/AppTheme"
         android:label="QEV Shield"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:allowBackup="false"
         android:usesCleartextTraffic="false"
         android:supportsRtl="true">

@@ -13,4 +13,41 @@ android {
         versionCode 1
         versionName '0.1.0'
     }
+
+    signingConfigs {
+        // Release signing is driven entirely by environment variables so that
+        // local/debug builds never need a keystore. CI (release.yml) decodes the
+        // keystore from a repo secret and exports these before assembleRelease.
+        release {
+            def storePath = System.getenv('SIGNING_KEYSTORE_PATH')
+            if (storePath) {
+                storeFile file(storePath)
+                storePassword System.getenv('SIGNING_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('SIGNING_KEY_ALIAS')
+                keyPassword System.getenv('SIGNING_KEY_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            // No third-party dependencies, so shrinking buys little and only adds
+            // a way for the build to break. Keep it off for a reliable, debuggable APK.
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+        debug {
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-debug'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
 }

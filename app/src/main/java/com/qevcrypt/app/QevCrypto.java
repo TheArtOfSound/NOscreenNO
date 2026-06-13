@@ -1,6 +1,5 @@
 package com.qevcrypt.app;
 
-import android.util.Base64;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -9,6 +8,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
+import java.util.Base64;
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
@@ -28,13 +28,14 @@ public final class QevCrypto {
 
     public static String lockText(String plain, String seed) throws GeneralSecurityException {
         byte[] packed = lockBytes(plain.getBytes(StandardCharsets.UTF_8), seed);
-        return "qev1:" + Base64.encodeToString(packed, Base64.NO_WRAP);
+        return "qev1:" + Base64.getEncoder().encodeToString(packed);
     }
 
     public static String unlockText(String text, String seed) throws GeneralSecurityException {
         String raw = text.trim();
         if (raw.startsWith("qev1:")) raw = raw.substring(5);
-        return new String(unlockBytes(Base64.decode(raw, Base64.NO_WRAP), seed), StandardCharsets.UTF_8);
+        // MIME decoder tolerates whitespace/line-wraps that copy-paste or messaging apps may introduce.
+        return new String(unlockBytes(Base64.getMimeDecoder().decode(raw), seed), StandardCharsets.UTF_8);
     }
 
     public static byte[] lockBytes(byte[] plain, String seed) throws GeneralSecurityException {
