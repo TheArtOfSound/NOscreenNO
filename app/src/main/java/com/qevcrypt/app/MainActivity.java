@@ -18,6 +18,7 @@ import android.graphics.drawable.StateListDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.UserManager;
 import android.provider.Settings;
 import android.provider.Telephony;
 import android.telephony.SmsManager;
@@ -95,7 +96,7 @@ public class MainActivity extends Activity {
     private TextView defaultSmsBtn;
 
     // power tab
-    private EditText rootPath;
+    private EditText rootPath, hideAppField;
     private TextView rootStatus, ownerStatus;
 
     // file op state
@@ -486,6 +487,14 @@ public class MainActivity extends Activity {
         card.addView(ownerStatus);
         card.addView(rowOf(primaryBtn("Block screenshots device-wide", v -> setDeviceScreenCapture(true)), ghostBtn("Allow screenshots", v -> setDeviceScreenCapture(false))));
         card.addView(rowOf(ghostBtn("Disable camera", v -> setDeviceCamera(true)), ghostBtn("Enable camera", v -> setDeviceCamera(false))));
+
+        card.addView(sectionLabel("Lockdown"));
+        card.addView(rowOf(primaryBtn("Lock device now", v -> lockNow()), ghostBtn("Pin app (kiosk)", v -> startKiosk()), ghostBtn("Exit kiosk", v -> exitKiosk())));
+        card.addView(rowOf(ghostBtn("Block unknown installs", v -> setUnknownInstalls(true)), ghostBtn("Allow installs", v -> setUnknownInstalls(false))));
+        hideAppField = input("Package to hide, e.g. com.android.chrome", false, 1);
+        card.addView(hideAppField, mwCard());
+        card.addView(rowOf(ghostBtn("Hide app", v -> hideApp(true)), ghostBtn("Unhide app", v -> hideApp(false))));
+
         card.addView(note("Not device owner yet? On a computer with USB debugging on, run:\nadb shell dpm set-device-owner com.qevcrypt.app/.QevDeviceAdmin\n(only works on a device with no accounts added — e.g. right after a reset.)"));
 
         refreshRootStatus();
@@ -562,10 +571,53 @@ public class MainActivity extends Activity {
     }
 
     private void setDeviceCamera(boolean disabled) {
-        if (!isDeviceOwner()) { setStatus("Set noscreeno as device owner first (command below)."); return; }
+        if (!ensureOwner()) return;
         try {
             dpm().setCameraDisabled(adminComponent(), disabled);
             setStatus(disabled ? "Camera disabled across the whole device." : "Camera enabled.");
+        } catch (Exception e) { setStatus("Failed: " + cleanError(e)); }
+    }
+
+    private boolean ensureOwner() {
+        if (isDeviceOwner()) return true;
+        setStatus("Set noscreeno as device owner first (command in this tab).");
+        return false;
+    }
+
+    private void lockNow() {
+        if (!ensureOwner()) return;
+        try { dpm().lockNow(); setStatus("Device locked."); } catch (Exception e) { setStatus("Failed: " + cleanError(e)); }
+    }
+
+    private void startKiosk() {
+        if (!ensureOwner()) return;
+        try {
+            dpm().setLockTaskPackages(adminComponent(), new String[]{getPackageName()});
+            startLockTask();
+            setStatus("Kiosk on — noscreeno is pinned as the only usable app.");
+        } catch (Exception e) { setStatus("Failed: " + cleanError(e)); }
+    }
+
+    private void exitKiosk() {
+        try { stopLockTask(); setStatus("Kiosk off."); } catch (Exception e) { setStatus("Failed: " + cleanError(e)); }
+    }
+
+    private void setUnknownInstalls(boolean block) {
+        if (!ensureOwner()) return;
+        try {
+            if (block) dpm().addUserRestriction(adminComponent(), UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES);
+            else dpm().clearUserRestriction(adminComponent(), UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES);
+            setStatus(block ? "Unknown-source installs blocked device-wide." : "Unknown-source installs allowed.");
+        } catch (Exception e) { setStatus("Failed: " + cleanError(e)); }
+    }
+
+    private void hideApp(boolean hidden) {
+        if (!ensureOwner()) return;
+        String pkg = hideAppField.getText().toString().trim();
+        if (pkg.isEmpty()) { setStatus("Enter a package name (e.g. com.android.chrome)."); return; }
+        try {
+            boolean ok = dpm().setApplicationHidden(adminComponent(), pkg, hidden);
+            setStatus(ok ? ((hidden ? "Hid " : "Unhid ") + pkg) : ("Couldn't change " + pkg + " — is it installed?"));
         } catch (Exception e) { setStatus("Failed: " + cleanError(e)); }
     }
 
