@@ -70,6 +70,7 @@ public class MainActivity extends Activity {
     private static final int REQ_NOTIFICATIONS = 301;
     private static final int REQ_SMS_ROLE = 401;
     private static final int REQ_SMS_PERM = 402;
+    private static final int REQ_PICK_CONTACT = 501;
     private static final String PREFS = "qev_shield_prefs";
     private static final String KEY_VAULT = "encrypted_vault_note";
     private static final String KEY_CHECK = "unlock_check_v1";
@@ -95,6 +96,8 @@ public class MainActivity extends Activity {
     private TextView defaultSmsBtn;
     private EditText replyBody, newToField;
     private String openThread;   // null = conversation list, "__new__" = compose, else an address
+    private TextView lockMsg;
+    private boolean bioTried;
 
     // power tab
     private EditText rootPath, hideAppField;
@@ -146,7 +149,7 @@ public class MainActivity extends Activity {
     @Override protected void onStop() {
         super.onStop();
         // Auto-lock when truly backgrounded (not when our own picker/permission screen is up).
-        if (masterKey != null && !internalNav) masterKey = null;
+        if (masterKey != null && !internalNav) { masterKey = null; bioTried = false; }
     }
 
     private void renderCurrent() {
@@ -220,6 +223,15 @@ public class MainActivity extends Activity {
         unlock.setOnClickListener(v -> submit.run());
         key.setOnEditorActionListener((v, a, e) -> { submit.run(); return true; });
 
+        lockMsg = msg;
+        if (!firstRun && Build.VERSION.SDK_INT >= 29 && BiometricGate.isEnabled(prefs()) && BiometricGate.canUse(this)) {
+            TextView bio = primaryBtn("Unlock with Face / Fingerprint");
+            LinearLayout.LayoutParams biop = mwCard(); biop.topMargin = dp(10);
+            pad.addView(bio, biop);
+            bio.setOnClickListener(v -> doBiometricUnlock());
+            if (!bioTried) { bioTried = true; scroll.post(() -> doBiometricUnlock()); }
+        }
+
         TextView foot = new TextView(this);
         foot.setText("a Qira product  ·  100% on-device  ·  no account");
         foot.setTextColor(0xFF6C7C97);
@@ -248,6 +260,10 @@ public class MainActivity extends Activity {
             msg.setText("Wrong key. Try again.");
             return;
         }
+        afterUnlock();
+    }
+
+    private void afterUnlock() {
         final String mk = masterKey;
         new Thread(() -> {
             try { MessageCrypto.ensureKeys(prefs(), mk); MessageStore.reseal(MainActivity.this); } catch (Exception ignore) {}
@@ -256,10 +272,31 @@ public class MainActivity extends Activity {
         forceRender();
     }
 
+    @android.annotation.TargetApi(29)
+    private void doBiometricUnlock() {
+        BiometricGate.unlock(this, prefs(), new BiometricGate.UnlockCallback() {
+            public void onUnlocked(String mk) { masterKey = mk; afterUnlock(); }
+            public void onError(String m) { if (lockMsg != null) lockMsg.setText(m); }
+            public void onFallback() { }
+        });
+    }
+
+    @android.annotation.TargetApi(29)
+    private void doEnableBiometric(TextView btn) {
+        BiometricGate.enable(this, prefs(), masterKey, new BiometricGate.EnableCallback() {
+            public void onEnabled() {
+                setStatus("Biometric unlock enabled — next time, unlock with Face / Fingerprint.");
+                if (btn != null) btn.setVisibility(View.GONE);
+            }
+            public void onError(String m) { setStatus("Couldn't enable biometrics: " + m); }
+        });
+    }
+
     private void lock() {
         masterKey = null;
         currentTab = 0;
         openThread = null;
+        bioTried = false;
         forceRender();
     }
 
@@ -287,11 +324,18 @@ public class MainActivity extends Activity {
         pad.addView(header, mw());
 
         TextView unlocked = new TextView(this);
-        unlocked.setText("Unlocked. Everything below is encrypted with your key.");
+        unlocked.setText("Unlocked. Everything is encrypted with your key, and re-locks the moment you leave the app.");
         unlocked.setTextColor(MUTED);
         unlocked.setTextSize(13);
         unlocked.setPadding(0, dp(6), 0, dp(16));
         pad.addView(unlocked, mw());
+
+        if (Build.VERSION.SDK_INT >= 29 && BiometricGate.canUse(this) && !BiometricGate.isEnabled(prefs())) {
+            TextView enableBio = ghostBtn("Enable Face / Fingerprint unlock");
+            LinearLayout.LayoutParams ebp = mw(); ebp.bottomMargin = dp(14);
+            pad.addView(enableBio, ebp);
+            enableBio.setOnClickListener(v -> doEnableBiometric(enableBio));
+        }
 
         // tab bar
         HorizontalScrollView tabScroll = new HorizontalScrollView(this);
@@ -391,32 +435,67 @@ public class MainActivity extends Activity {
     }
 
     private View conversationRow(MessageStore.Conversation cv) {
+        String name = Contacts.nameFor(this, cv.address);
         LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.VERTICAL);
-        row.setBackground(round(SURFACE2, 10, LINE, 1));
-        row.setPadding(dp(14), dp(12), dp(14), dp(12));
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setBackground(round(SURFACE2, 12, LINE, 1));
+        row.setPadding(dp(12), dp(11), dp(14), dp(11));
         row.setLayoutParams(mwCard());
+        LinearLayout.LayoutParams avp = new LinearLayout.LayoutParams(dp(44), dp(44));
+        avp.rightMargin = dp(12);
+        row.addView(avatar(name), avp);
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
         TextView head = new TextView(this);
-        head.setText(Contacts.nameFor(this, cv.address));
+        head.setText(name);
         head.setTextColor(TEXT); head.setTextSize(15); head.setTypeface(Typeface.DEFAULT_BOLD);
-        row.addView(head);
+        head.setMaxLines(1); head.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        col.addView(head);
         TextView snip = new TextView(this);
-        snip.setText((cv.lastIncoming ? "" : "You: ") + oneLine(cv.lastBody) + "   ·  " + relTime(cv.lastTime));
+        snip.setText((cv.lastIncoming ? "" : "You: ") + oneLine(cv.lastBody) + "  ·  " + relTime(cv.lastTime));
         snip.setTextColor(MUTED); snip.setTextSize(13);
         snip.setMaxLines(1); snip.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        row.addView(snip);
+        col.addView(snip);
+        row.addView(col, new LinearLayout.LayoutParams(0, -2, 1f));
         row.setOnClickListener(v -> { openThread = cv.address; renderMessages(); });
         return row;
     }
 
+    private View avatar(String name) {
+        TextView t = new TextView(this);
+        String initial = (name == null || name.trim().isEmpty()) ? "#"
+                : name.trim().substring(0, 1).toUpperCase(Locale.US);
+        if (!Character.isLetterOrDigit(initial.charAt(0))) initial = "#";
+        t.setText(initial);
+        t.setTextColor(0xFF04161C);
+        t.setTextSize(18);
+        t.setTypeface(Typeface.DEFAULT_BOLD);
+        t.setGravity(Gravity.CENTER);
+        GradientDrawable g = new GradientDrawable();
+        g.setShape(GradientDrawable.OVAL);
+        g.setColor(avatarColor(name));
+        t.setBackground(g);
+        return t;
+    }
+
+    private int avatarColor(String s) {
+        int[] palette = {0xFF34D8F0, 0xFF7C5CFF, 0xFFC8A84B, 0xFF2DD4BF, 0xFFE4632A, 0xFF5B8CFF};
+        return palette[Math.abs((s == null ? 0 : s.hashCode())) % palette.length];
+    }
+
     private void renderThread(String address) {
         LinearLayout c = msgListContainer;
+        String name = Contacts.nameFor(this, address);
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.addView(ghostBtn("‹ Back", v -> { openThread = null; renderMessages(); }));
+        header.addView(ghostBtn("‹", v -> { openThread = null; renderMessages(); }));
+        LinearLayout.LayoutParams avp = new LinearLayout.LayoutParams(dp(38), dp(38));
+        avp.leftMargin = dp(10); avp.rightMargin = dp(10);
+        header.addView(avatar(name), avp);
         TextView title = new TextView(this);
-        title.setText("  " + Contacts.nameFor(this, address));
+        title.setText(name);
         title.setTextColor(TEXT); title.setTextSize(17); title.setTypeface(Typeface.DEFAULT_BOLD);
         header.addView(title);
         c.addView(header, mwCard());
@@ -429,6 +508,7 @@ public class MainActivity extends Activity {
         c.addView(replyBody, mwCard());
         final String addr = address;
         c.addView(primaryBtn("Send", v -> send(addr, replyBody.getText().toString())));
+        scroll.post(() -> scroll.fullScroll(View.FOCUS_DOWN));
     }
 
     private View bubble(MessageStore.Msg m) {
@@ -442,6 +522,7 @@ public class MainActivity extends Activity {
         b.setPadding(dp(12), dp(8), dp(12), dp(8));
         TextView body = new TextView(this);
         body.setText(m.body); body.setTextColor(TEXT); body.setTextSize(15);
+        body.setMaxWidth((int) (getResources().getDisplayMetrics().widthPixels * 0.74f));
         b.addView(body);
         TextView t = new TextView(this);
         t.setText(relTime(m.timestamp)); t.setTextColor(MUTED); t.setTextSize(11);
@@ -461,12 +542,21 @@ public class MainActivity extends Activity {
         title.setTextColor(TEXT); title.setTextSize(17); title.setTypeface(Typeface.DEFAULT_BOLD);
         header.addView(title);
         c.addView(header, mwCard());
+        c.addView(ghostBtn("Choose from contacts", v -> pickContact()));
         newToField = input("To (phone number)", false, 1);
         newToField.setInputType(InputType.TYPE_CLASS_PHONE);
         c.addView(newToField, mwCard());
         replyBody = input("Message", false, 3);
         c.addView(replyBody, mwCard());
         c.addView(primaryBtn("Send", v -> send(newToField.getText().toString(), replyBody.getText().toString())));
+    }
+
+    private void pickContact() {
+        try {
+            internalNav = true;
+            startActivityForResult(new Intent(Intent.ACTION_PICK,
+                    android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI), REQ_PICK_CONTACT);
+        } catch (Exception e) { setStatus("No contacts app available."); }
     }
 
     private void send(String to, String body) {
@@ -827,6 +917,18 @@ public class MainActivity extends Activity {
             return;
         }
         if (result != RESULT_OK || data == null) return;
+        if (request == REQ_PICK_CONTACT) {
+            try (android.database.Cursor cur = getContentResolver().query(data.getData(),
+                    new String[]{android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER}, null, null, null)) {
+                if (cur != null && cur.moveToFirst()) {
+                    openThread = "__new__";
+                    renderMessages();
+                    if (newToField != null) newToField.setText(cur.getString(0));
+                    setStatus("Contact selected.");
+                }
+            } catch (Exception e) { setStatus("Couldn't read contact: " + cleanError(e)); }
+            return;
+        }
         try {
             if (request == PICK_ENCRYPT || request == PICK_DECRYPT) {
                 pendingInput = data.getData();
