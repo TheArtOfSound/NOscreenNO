@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://noscreeno.imagineqira.com/sitemap.xml
