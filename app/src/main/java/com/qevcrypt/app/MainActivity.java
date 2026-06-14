@@ -2,8 +2,11 @@ package com.qevcrypt.app;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.admin.DevicePolicyManager;
+import android.app.role.RoleManager;
 import android.content.ClipData;
 import android.content.ClipboardManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -16,6 +19,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.provider.Telephony;
+import android.telephony.SmsManager;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.view.Gravity;
@@ -24,6 +29,7 @@ import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.widget.EditText;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -61,6 +67,8 @@ public class MainActivity extends Activity {
     private static final int CREATE_ENCRYPTED = 201;
     private static final int CREATE_DECRYPTED = 202;
     private static final int REQ_NOTIFICATIONS = 301;
+    private static final int REQ_SMS_ROLE = 401;
+    private static final int REQ_SMS_PERM = 402;
     private static final String PREFS = "qev_shield_prefs";
     private static final String KEY_VAULT = "encrypted_vault_note";
     private static final String KEY_CHECK = "unlock_check_v1";
@@ -78,8 +86,17 @@ public class MainActivity extends Activity {
     // app views
     private EditText textTitle, textBody, vaultBody;
     private TextView status;
-    private LinearLayout[] panels = new LinearLayout[4];
-    private TextView[] tabs = new TextView[4];
+    private LinearLayout[] panels = new LinearLayout[6];
+    private TextView[] tabs = new TextView[6];
+
+    // messages tab
+    private EditText smsTo, smsBody;
+    private LinearLayout msgListContainer;
+    private TextView defaultSmsBtn;
+
+    // power tab
+    private EditText rootPath;
+    private TextView rootStatus, ownerStatus;
 
     // file op state
     private Uri pendingInput;
@@ -228,6 +245,7 @@ public class MainActivity extends Activity {
             msg.setText("Wrong key. Try again.");
             return;
         }
+        try { MessageCrypto.ensureKeys(prefs(), masterKey); } catch (Exception ignore) {}
         forceRender();
     }
 
@@ -268,30 +286,35 @@ public class MainActivity extends Activity {
         pad.addView(unlocked, mw());
 
         // tab bar
+        HorizontalScrollView tabScroll = new HorizontalScrollView(this);
+        tabScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout tabbar = new LinearLayout(this);
         tabbar.setOrientation(LinearLayout.HORIZONTAL);
         tabbar.setBackground(round(SURFACE, 13, LINE, 1));
         tabbar.setPadding(dp(4), dp(4), dp(4), dp(4));
-        String[] names = {"Text", "Vault", "Files", "Shield"};
-        for (int i = 0; i < 4; i++) {
+        tabScroll.addView(tabbar);
+        String[] names = {"Texts", "Encrypt", "Vault", "Files", "Shield", "Power"};
+        for (int i = 0; i < 6; i++) {
             final int idx = i;
             TextView t = new TextView(this);
             t.setText(names[i]);
             t.setGravity(Gravity.CENTER);
-            t.setTextSize(14);
-            t.setPadding(0, dp(10), 0, dp(10));
+            t.setTextSize(13);
+            t.setPadding(dp(20), dp(10), dp(20), dp(10));
             t.setOnClickListener(v -> selectTab(idx));
             tabs[i] = t;
-            tabbar.addView(t, new LinearLayout.LayoutParams(0, -2, 1f));
+            tabbar.addView(t, new LinearLayout.LayoutParams(-2, -2));
         }
         LinearLayout.LayoutParams tbp = mw();
         tbp.bottomMargin = dp(16);
-        pad.addView(tabbar, tbp);
+        pad.addView(tabScroll, tbp);
 
-        panels[0] = buildTextPanel();
-        panels[1] = buildVaultPanel();
-        panels[2] = buildFilesPanel();
-        panels[3] = buildShieldPanel();
+        panels[0] = buildMessagesPanel();
+        panels[1] = buildTextPanel();
+        panels[2] = buildVaultPanel();
+        panels[3] = buildFilesPanel();
+        panels[4] = buildShieldPanel();
+        panels[5] = buildPowerPanel();
         for (LinearLayout p : panels) pad.addView(p, mw());
 
         status = new TextView(this);
@@ -306,13 +329,244 @@ public class MainActivity extends Activity {
 
     private void selectTab(int idx) {
         currentTab = idx;
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 6; i++) {
             boolean on = i == idx;
             if (panels[i] != null) panels[i].setVisibility(on ? View.VISIBLE : View.GONE);
             tabs[i].setBackground(on ? round(ACCENT, 10, ACCENT, 0) : null);
             tabs[i].setTextColor(on ? INK : MUTED);
             tabs[i].setTypeface(on ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
         }
+    }
+
+    @Override public void onRequestPermissionsResult(int req, String[] perms, int[] res) {
+        super.onRequestPermissionsResult(req, perms, res);
+        if (req == REQ_SMS_PERM) {
+            boolean granted = res.length > 0 && res[0] == PackageManager.PERMISSION_GRANTED;
+            setStatus(granted ? "SMS permission granted — tap Send again." : "SMS permission denied.");
+        }
+    }
+
+    // ---------------------------------------------------------------- messages (default SMS)
+
+    private LinearLayout buildMessagesPanel() {
+        LinearLayout card = card();
+        card.addView(cardTitle("Messages"));
+        card.addView(note("Your texts, sealed on this device and readable only while you're unlocked. noscreeno must be your default SMS app to receive them."));
+        defaultSmsBtn = primaryBtn("Set noscreeno as default SMS app", v -> setDefaultSms());
+        card.addView(defaultSmsBtn, mwCard());
+
+        card.addView(sectionLabel("Send a text"));
+        smsTo = input("To (phone number)", false, 1);
+        smsTo.setInputType(InputType.TYPE_CLASS_PHONE);
+        card.addView(smsTo, mwCard());
+        smsBody = input("Message", false, 3);
+        card.addView(smsBody, mwCard());
+        card.addView(rowOf(primaryBtn("Send", v -> sendSms()), ghostBtn("Refresh", v -> refreshMessages())));
+
+        card.addView(sectionLabel("Inbox"));
+        msgListContainer = new LinearLayout(this);
+        msgListContainer.setOrientation(LinearLayout.VERTICAL);
+        card.addView(msgListContainer, mwCard());
+
+        updateDefaultSmsBtn();
+        refreshMessages();
+        return card;
+    }
+
+    private boolean isDefaultSms() {
+        return getPackageName().equals(Telephony.Sms.getDefaultSmsPackage(this));
+    }
+
+    private void updateDefaultSmsBtn() {
+        if (defaultSmsBtn == null) return;
+        defaultSmsBtn.setText(isDefaultSms() ? "✓ noscreeno is your default SMS app" : "Set noscreeno as default SMS app");
+    }
+
+    private void setDefaultSms() {
+        if (isDefaultSms()) { setStatus("noscreeno is already your default SMS app."); updateDefaultSmsBtn(); return; }
+        try {
+            if (Build.VERSION.SDK_INT >= 29 && requestSmsRole()) return;
+            Intent i = new Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT);
+            i.putExtra(Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, getPackageName());
+            internalNav = true;
+            startActivity(i);
+        } catch (Exception e) { setStatus("Couldn't open the default-app picker: " + cleanError(e)); }
+    }
+
+    @android.annotation.TargetApi(29)
+    private boolean requestSmsRole() {
+        RoleManager rm = (RoleManager) getSystemService(Context.ROLE_SERVICE);
+        if (rm != null && rm.isRoleAvailable(RoleManager.ROLE_SMS)) {
+            internalNav = true;
+            startActivityForResult(rm.createRequestRoleIntent(RoleManager.ROLE_SMS), REQ_SMS_ROLE);
+            return true;
+        }
+        return false;
+    }
+
+    private void sendSms() {
+        String to = smsTo.getText().toString().trim();
+        String body = smsBody.getText().toString();
+        if (to.isEmpty()) { setStatus("Enter a phone number to send to."); return; }
+        if (body.trim().isEmpty()) { setStatus("Type a message to send."); return; }
+        if (checkSelfPermission(Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.SEND_SMS, Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS}, REQ_SMS_PERM);
+            setStatus("Allow SMS permission, then tap Send again.");
+            return;
+        }
+        try {
+            SmsManager sm = smsManager();
+            java.util.ArrayList<String> parts = sm.divideMessage(body);
+            sm.sendMultipartTextMessage(to, null, parts, null, null);
+            MessageStore.add(this, MessageStore.OUT, to, body);
+            smsBody.setText("");
+            setStatus("Sent.");
+            refreshMessages();
+        } catch (Exception e) { setStatus("Send failed: " + cleanError(e)); }
+    }
+
+    @SuppressWarnings("deprecation")
+    private SmsManager smsManager() {
+        if (Build.VERSION.SDK_INT >= 31) {
+            SmsManager s = getSystemService(SmsManager.class);
+            if (s != null) return s;
+        }
+        return SmsManager.getDefault();
+    }
+
+    private void refreshMessages() {
+        if (msgListContainer == null) return;
+        msgListContainer.removeAllViews();
+        if (masterKey == null) return;
+        java.util.List<MessageStore.Msg> msgs = MessageStore.list(this, masterKey);
+        if (msgs.isEmpty()) { msgListContainer.addView(note("No messages yet.")); return; }
+        for (MessageStore.Msg m : msgs) msgListContainer.addView(messageRow(m));
+        setStatus(msgs.size() + " message" + (msgs.size() == 1 ? "" : "s") + " decrypted.");
+    }
+
+    private View messageRow(MessageStore.Msg m) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setBackground(round(SURFACE2, 10, LINE, 1));
+        row.setPadding(dp(12), dp(10), dp(12), dp(10));
+        row.setLayoutParams(mwCard());
+        TextView head = new TextView(this);
+        String when = new SimpleDateFormat("MMM d, HH:mm", Locale.US).format(new Date(m.timestamp));
+        String who = (m.address == null || m.address.isEmpty()) ? "unknown" : m.address;
+        head.setText((m.incoming() ? "← from " : "→ to ") + who + "  ·  " + when);
+        head.setTextColor(m.incoming() ? ACCENT : MUTED);
+        head.setTextSize(12);
+        row.addView(head);
+        TextView b = new TextView(this);
+        b.setText(m.body);
+        b.setTextColor(TEXT);
+        b.setTextSize(15);
+        b.setPadding(0, dp(3), 0, 0);
+        row.addView(b);
+        return row;
+    }
+
+    // ---------------------------------------------------------------- power (root + device owner)
+
+    private LinearLayout buildPowerPanel() {
+        LinearLayout card = card();
+        card.addView(cardTitle("Power"));
+        card.addView(note("Elevated capabilities that go beyond a normal app. These need root on the device, or noscreeno set as device owner."));
+
+        card.addView(sectionLabel("Root — encrypt anything by path"));
+        rootStatus = note("Checking root...");
+        card.addView(rootStatus);
+        rootPath = input("/sdcard/DCIM  or  /sdcard/secret.txt", false, 1);
+        card.addView(rootPath, mwCard());
+        card.addView(rowOf(primaryBtn("Encrypt path", v -> rootEncryptPath(true)), ghostBtn("Decrypt path", v -> rootEncryptPath(false))));
+        card.addView(ghostBtn("Recheck root", v -> refreshRootStatus()));
+
+        card.addView(sectionLabel("Device owner — control the whole device"));
+        ownerStatus = note("Checking device owner...");
+        card.addView(ownerStatus);
+        card.addView(rowOf(primaryBtn("Block screenshots device-wide", v -> setDeviceScreenCapture(true)), ghostBtn("Allow screenshots", v -> setDeviceScreenCapture(false))));
+        card.addView(rowOf(ghostBtn("Disable camera", v -> setDeviceCamera(true)), ghostBtn("Enable camera", v -> setDeviceCamera(false))));
+        card.addView(note("Not device owner yet? On a computer with USB debugging on, run:\nadb shell dpm set-device-owner com.qevcrypt.app/.QevDeviceAdmin\n(only works on a device with no accounts added — e.g. right after a reset.)"));
+
+        refreshRootStatus();
+        refreshOwnerStatus();
+        return card;
+    }
+
+    private void refreshRootStatus() {
+        if (rootStatus != null) rootStatus.setText("Checking root...");
+        new Thread(() -> {
+            final boolean ok = RootShell.isAvailable();
+            runOnUiThread(() -> { if (rootStatus != null) rootStatus.setText(ok
+                    ? "✓ Root available — encrypt any file or folder below."
+                    : "Root not available on this device."); });
+        }).start();
+    }
+
+    private void rootEncryptPath(boolean encrypt) {
+        final String path = rootPath.getText().toString().trim();
+        if (path.isEmpty()) { setStatus("Enter a file or folder path."); return; }
+        final String key = masterKey;
+        setStatus((encrypt ? "Encrypting " : "Decrypting ") + path + " ...");
+        new Thread(() -> {
+            try {
+                if (!RootShell.isAvailable()) { post("Root not available on this device."); return; }
+                java.util.List<String> files = RootShell.listFiles(path);
+                if (files.isEmpty()) { post("Nothing found at that path (it must exist and root must be granted)."); return; }
+                int done = 0, skipped = 0;
+                for (String f : files) {
+                    if (encrypt) {
+                        if (f.endsWith(".qev")) { skipped++; continue; }
+                        byte[] ct = QevCrypto.lockBytes(RootShell.readFile(f), key);
+                        RootShell.writeFile(f + ".qev", ct);
+                        RootShell.exec("rm " + shellQuote(f));
+                    } else {
+                        if (!f.endsWith(".qev")) { skipped++; continue; }
+                        byte[] pt = QevCrypto.unlockBytes(RootShell.readFile(f), key);
+                        RootShell.writeFile(f.substring(0, f.length() - 4), pt);
+                        RootShell.exec("rm " + shellQuote(f));
+                    }
+                    done++;
+                }
+                post((encrypt ? "Encrypted " : "Decrypted ") + done + " file(s) with root"
+                        + (skipped > 0 ? " (" + skipped + " skipped)." : "."));
+            } catch (Exception e) { post("Root op failed: " + cleanError(e)); }
+        }).start();
+    }
+
+    private static String shellQuote(String p) { return "\"" + p.replace("\\", "\\\\").replace("\"", "\\\"") + "\""; }
+
+    private void post(String s) { runOnUiThread(() -> setStatus(s)); }
+
+    private ComponentName adminComponent() { return new ComponentName(this, QevDeviceAdmin.class); }
+
+    private DevicePolicyManager dpm() { return (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE); }
+
+    private boolean isDeviceOwner() {
+        try { return dpm().isDeviceOwnerApp(getPackageName()); } catch (Exception e) { return false; }
+    }
+
+    private void refreshOwnerStatus() {
+        if (ownerStatus == null) return;
+        ownerStatus.setText(isDeviceOwner()
+                ? "✓ noscreeno is device owner — device-wide control enabled."
+                : "Not device owner yet (see the setup command below).");
+    }
+
+    private void setDeviceScreenCapture(boolean disabled) {
+        if (!isDeviceOwner()) { setStatus("Set noscreeno as device owner first (command below)."); return; }
+        try {
+            dpm().setScreenCaptureDisabled(adminComponent(), disabled);
+            setStatus(disabled ? "Screenshots blocked across the whole device." : "Screenshots allowed device-wide.");
+        } catch (Exception e) { setStatus("Failed: " + cleanError(e)); }
+    }
+
+    private void setDeviceCamera(boolean disabled) {
+        if (!isDeviceOwner()) { setStatus("Set noscreeno as device owner first (command below)."); return; }
+        try {
+            dpm().setCameraDisabled(adminComponent(), disabled);
+            setStatus(disabled ? "Camera disabled across the whole device." : "Camera enabled.");
+        } catch (Exception e) { setStatus("Failed: " + cleanError(e)); }
     }
 
     private LinearLayout buildTextPanel() {
@@ -429,6 +683,12 @@ public class MainActivity extends Activity {
 
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
+        if (request == REQ_SMS_ROLE) {
+            updateDefaultSmsBtn();
+            refreshMessages();
+            setStatus(isDefaultSms() ? "noscreeno is now your default SMS app." : "Not set as default SMS app.");
+            return;
+        }
         if (result != RESULT_OK || data == null) return;
         try {
             if (request == PICK_ENCRYPT || request == PICK_DECRYPT) {
@@ -554,6 +814,17 @@ public class MainActivity extends Activity {
         v.setTextColor(TEXT);
         v.setTextSize(19);
         v.setTypeface(Typeface.DEFAULT_BOLD);
+        return v;
+    }
+
+    private TextView sectionLabel(String s) {
+        TextView v = new TextView(this);
+        v.setText(s);
+        v.setTextColor(MUTED);
+        v.setTextSize(12);
+        v.setAllCaps(true);
+        v.setLetterSpacing(0.08f);
+        v.setPadding(0, dp(18), 0, dp(2));
         return v;
     }
 
