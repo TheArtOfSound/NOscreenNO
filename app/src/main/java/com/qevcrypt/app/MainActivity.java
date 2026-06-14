@@ -91,9 +91,10 @@ public class MainActivity extends Activity {
     private TextView[] tabs = new TextView[6];
 
     // messages tab
-    private EditText smsTo, smsBody;
     private LinearLayout msgListContainer;
     private TextView defaultSmsBtn;
+    private EditText replyBody, newToField;
+    private String openThread;   // null = conversation list, "__new__" = compose, else an address
 
     // power tab
     private EditText rootPath, hideAppField;
@@ -139,6 +140,7 @@ public class MainActivity extends Activity {
         super.onResume();
         internalNav = false;
         renderCurrent();
+        if (masterKey != null && msgListContainer != null) renderMessages();
     }
 
     @Override protected void onStop() {
@@ -246,13 +248,18 @@ public class MainActivity extends Activity {
             msg.setText("Wrong key. Try again.");
             return;
         }
-        try { MessageCrypto.ensureKeys(prefs(), masterKey); } catch (Exception ignore) {}
+        final String mk = masterKey;
+        new Thread(() -> {
+            try { MessageCrypto.ensureKeys(prefs(), mk); MessageStore.reseal(MainActivity.this); } catch (Exception ignore) {}
+            runOnUiThread(() -> { if (currentTab == 0) renderMessages(); });
+        }).start();
         forceRender();
     }
 
     private void lock() {
         masterKey = null;
         currentTab = 0;
+        openThread = null;
         forceRender();
     }
 
@@ -351,31 +358,160 @@ public class MainActivity extends Activity {
 
     private LinearLayout buildMessagesPanel() {
         LinearLayout card = card();
-        card.addView(cardTitle("Messages"));
-        card.addView(note("Your texts, sealed on this device and readable only while you're unlocked. noscreeno must be your default SMS app to receive them."));
-        defaultSmsBtn = primaryBtn("Set noscreeno as default SMS app", v -> setDefaultSms());
-        card.addView(defaultSmsBtn, mwCard());
-
-        card.addView(sectionLabel("Send a text"));
-        smsTo = input("To (phone number)", false, 1);
-        smsTo.setInputType(InputType.TYPE_CLASS_PHONE);
-        card.addView(smsTo, mwCard());
-        smsBody = input("Message", false, 3);
-        card.addView(smsBody, mwCard());
-        card.addView(rowOf(primaryBtn("Send", v -> sendSms()), ghostBtn("Refresh", v -> refreshMessages())));
-
-        card.addView(sectionLabel("Inbox"));
         msgListContainer = new LinearLayout(this);
         msgListContainer.setOrientation(LinearLayout.VERTICAL);
-        card.addView(msgListContainer, mwCard());
-
-        updateDefaultSmsBtn();
-        refreshMessages();
+        card.addView(msgListContainer, mw());
+        renderMessages();
         return card;
     }
 
+    private void renderMessages() {
+        if (msgListContainer == null) return;
+        msgListContainer.removeAllViews();
+        if (masterKey == null) return;
+        if (openThread == null) renderConversationList();
+        else if ("__new__".equals(openThread)) renderCompose();
+        else renderThread(openThread);
+    }
+
+    private void renderConversationList() {
+        LinearLayout c = msgListContainer;
+        c.addView(cardTitle("Messages"));
+        if (!isDefaultSms()) {
+            c.addView(note("Make noscreeno your default SMS app to send and receive texts."));
+            defaultSmsBtn = primaryBtn("Set noscreeno as default SMS app", v -> setDefaultSms());
+            c.addView(defaultSmsBtn, mwCard());
+        }
+        c.addView(rowOf(
+                primaryBtn("New message", v -> { openThread = "__new__"; renderMessages(); }),
+                ghostBtn("Refresh", v -> renderMessages())));
+        java.util.List<MessageStore.Conversation> convos = MessageStore.conversations(this, masterKey);
+        if (convos.isEmpty()) { c.addView(note("No conversations yet.")); return; }
+        for (MessageStore.Conversation cv : convos) c.addView(conversationRow(cv));
+    }
+
+    private View conversationRow(MessageStore.Conversation cv) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setBackground(round(SURFACE2, 10, LINE, 1));
+        row.setPadding(dp(14), dp(12), dp(14), dp(12));
+        row.setLayoutParams(mwCard());
+        TextView head = new TextView(this);
+        head.setText(Contacts.nameFor(this, cv.address));
+        head.setTextColor(TEXT); head.setTextSize(15); head.setTypeface(Typeface.DEFAULT_BOLD);
+        row.addView(head);
+        TextView snip = new TextView(this);
+        snip.setText((cv.lastIncoming ? "" : "You: ") + oneLine(cv.lastBody) + "   ·  " + relTime(cv.lastTime));
+        snip.setTextColor(MUTED); snip.setTextSize(13);
+        snip.setMaxLines(1); snip.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        row.addView(snip);
+        row.setOnClickListener(v -> { openThread = cv.address; renderMessages(); });
+        return row;
+    }
+
+    private void renderThread(String address) {
+        LinearLayout c = msgListContainer;
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.addView(ghostBtn("‹ Back", v -> { openThread = null; renderMessages(); }));
+        TextView title = new TextView(this);
+        title.setText("  " + Contacts.nameFor(this, address));
+        title.setTextColor(TEXT); title.setTextSize(17); title.setTypeface(Typeface.DEFAULT_BOLD);
+        header.addView(title);
+        c.addView(header, mwCard());
+
+        java.util.List<MessageStore.Msg> msgs = MessageStore.thread(this, masterKey, address);
+        if (msgs.isEmpty()) c.addView(note("No messages yet."));
+        for (MessageStore.Msg m : msgs) c.addView(bubble(m));
+
+        replyBody = input("Message", false, 2);
+        c.addView(replyBody, mwCard());
+        final String addr = address;
+        c.addView(primaryBtn("Send", v -> send(addr, replyBody.getText().toString())));
+    }
+
+    private View bubble(MessageStore.Msg m) {
+        LinearLayout wrap = new LinearLayout(this);
+        wrap.setOrientation(LinearLayout.VERTICAL);
+        wrap.setGravity(m.incoming() ? Gravity.START : Gravity.END);
+        wrap.setLayoutParams(mwCard());
+        LinearLayout b = new LinearLayout(this);
+        b.setOrientation(LinearLayout.VERTICAL);
+        b.setBackground(round(m.incoming() ? SURFACE2 : 0xFF103A44, 12, m.incoming() ? LINE : 0xFF1C5563, 1));
+        b.setPadding(dp(12), dp(8), dp(12), dp(8));
+        TextView body = new TextView(this);
+        body.setText(m.body); body.setTextColor(TEXT); body.setTextSize(15);
+        b.addView(body);
+        TextView t = new TextView(this);
+        t.setText(relTime(m.timestamp)); t.setTextColor(MUTED); t.setTextSize(11);
+        b.addView(t);
+        wrap.addView(b, new LinearLayout.LayoutParams(-2, -2));
+        return wrap;
+    }
+
+    private void renderCompose() {
+        LinearLayout c = msgListContainer;
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.addView(ghostBtn("‹ Back", v -> { openThread = null; renderMessages(); }));
+        TextView title = new TextView(this);
+        title.setText("  New message");
+        title.setTextColor(TEXT); title.setTextSize(17); title.setTypeface(Typeface.DEFAULT_BOLD);
+        header.addView(title);
+        c.addView(header, mwCard());
+        newToField = input("To (phone number)", false, 1);
+        newToField.setInputType(InputType.TYPE_CLASS_PHONE);
+        c.addView(newToField, mwCard());
+        replyBody = input("Message", false, 3);
+        c.addView(replyBody, mwCard());
+        c.addView(primaryBtn("Send", v -> send(newToField.getText().toString(), replyBody.getText().toString())));
+    }
+
+    private void send(String to, String body) {
+        to = to == null ? "" : to.trim();
+        if (to.isEmpty()) { setStatus("Enter a phone number."); return; }
+        if (body == null || body.trim().isEmpty()) { setStatus("Type a message."); return; }
+        if (checkSelfPermission(Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.SEND_SMS, Manifest.permission.RECEIVE_SMS,
+                    Manifest.permission.READ_SMS, Manifest.permission.READ_CONTACTS}, REQ_SMS_PERM);
+            setStatus("Allow SMS permission, then tap Send again.");
+            return;
+        }
+        try {
+            SmsManager sm = smsManager();
+            sm.sendMultipartTextMessage(to, null, sm.divideMessage(body), null, null);
+            MessageStore.add(this, MessageStore.OUT, to, body);
+            openThread = to;
+            setStatus("Sent.");
+            renderMessages();
+        } catch (Exception e) { setStatus("Send failed: " + cleanError(e)); }
+    }
+
+    private String relTime(long ts) {
+        java.text.SimpleDateFormat f = (System.currentTimeMillis() - ts < 24L * 3600 * 1000)
+                ? new SimpleDateFormat("h:mm a", Locale.US) : new SimpleDateFormat("MMM d", Locale.US);
+        return f.format(new Date(ts));
+    }
+
+    private String oneLine(String s) {
+        if (s == null) return "";
+        String t = s.replaceAll("\\s+", " ").trim();
+        return t.length() > 60 ? t.substring(0, 60) + "…" : t;
+    }
+
     private boolean isDefaultSms() {
+        if (Build.VERSION.SDK_INT >= 29 && roleHeldSms()) return true;
         return getPackageName().equals(Telephony.Sms.getDefaultSmsPackage(this));
+    }
+
+    @android.annotation.TargetApi(29)
+    private boolean roleHeldSms() {
+        try {
+            RoleManager rm = (RoleManager) getSystemService(Context.ROLE_SERVICE);
+            return rm != null && rm.isRoleHeld(RoleManager.ROLE_SMS);
+        } catch (Exception e) { return false; }
     }
 
     private void updateDefaultSmsBtn() {
@@ -405,27 +541,6 @@ public class MainActivity extends Activity {
         return false;
     }
 
-    private void sendSms() {
-        String to = smsTo.getText().toString().trim();
-        String body = smsBody.getText().toString();
-        if (to.isEmpty()) { setStatus("Enter a phone number to send to."); return; }
-        if (body.trim().isEmpty()) { setStatus("Type a message to send."); return; }
-        if (checkSelfPermission(Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.SEND_SMS, Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS}, REQ_SMS_PERM);
-            setStatus("Allow SMS permission, then tap Send again.");
-            return;
-        }
-        try {
-            SmsManager sm = smsManager();
-            java.util.ArrayList<String> parts = sm.divideMessage(body);
-            sm.sendMultipartTextMessage(to, null, parts, null, null);
-            MessageStore.add(this, MessageStore.OUT, to, body);
-            smsBody.setText("");
-            setStatus("Sent.");
-            refreshMessages();
-        } catch (Exception e) { setStatus("Send failed: " + cleanError(e)); }
-    }
-
     @SuppressWarnings("deprecation")
     private SmsManager smsManager() {
         if (Build.VERSION.SDK_INT >= 31) {
@@ -435,37 +550,7 @@ public class MainActivity extends Activity {
         return SmsManager.getDefault();
     }
 
-    private void refreshMessages() {
-        if (msgListContainer == null) return;
-        msgListContainer.removeAllViews();
-        if (masterKey == null) return;
-        java.util.List<MessageStore.Msg> msgs = MessageStore.list(this, masterKey);
-        if (msgs.isEmpty()) { msgListContainer.addView(note("No messages yet.")); return; }
-        for (MessageStore.Msg m : msgs) msgListContainer.addView(messageRow(m));
-        setStatus(msgs.size() + " message" + (msgs.size() == 1 ? "" : "s") + " decrypted.");
-    }
-
-    private View messageRow(MessageStore.Msg m) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.VERTICAL);
-        row.setBackground(round(SURFACE2, 10, LINE, 1));
-        row.setPadding(dp(12), dp(10), dp(12), dp(10));
-        row.setLayoutParams(mwCard());
-        TextView head = new TextView(this);
-        String when = new SimpleDateFormat("MMM d, HH:mm", Locale.US).format(new Date(m.timestamp));
-        String who = (m.address == null || m.address.isEmpty()) ? "unknown" : m.address;
-        head.setText((m.incoming() ? "← from " : "→ to ") + who + "  ·  " + when);
-        head.setTextColor(m.incoming() ? ACCENT : MUTED);
-        head.setTextSize(12);
-        row.addView(head);
-        TextView b = new TextView(this);
-        b.setText(m.body);
-        b.setTextColor(TEXT);
-        b.setTextSize(15);
-        b.setPadding(0, dp(3), 0, 0);
-        row.addView(b);
-        return row;
-    }
+    private void refreshMessages() { renderMessages(); }
 
     // ---------------------------------------------------------------- power (root + device owner)
 

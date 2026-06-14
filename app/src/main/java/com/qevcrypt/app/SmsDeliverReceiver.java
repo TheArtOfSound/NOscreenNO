@@ -8,8 +8,9 @@ import android.telephony.SmsMessage;
 
 /**
  * Receives incoming SMS once noscreeno is the default SMS app. The message is
- * sealed with the public key and appended to the encrypted store immediately —
- * even if the app is locked — so it is never written in plaintext.
+ * stored encrypted (sealed with the public key, so it works even while locked),
+ * and a notification is posted so you actually know a text arrived. The store
+ * never drops a message, even if the key isn't ready yet.
  */
 public class SmsDeliverReceiver extends BroadcastReceiver {
 
@@ -27,11 +28,13 @@ public class SmsDeliverReceiver extends BroadcastReceiver {
             String part = m.getMessageBody();
             if (part != null) body.append(part);
         }
+
+        MessageStore.add(context, MessageStore.IN, from, body.toString());
+
         try {
-            MessageStore.add(context, MessageStore.IN, from, body.toString());
-        } catch (Exception e) {
-            // A broadcast receiver must never crash; if sealing fails (e.g. no key yet),
-            // the message is simply not stored.
+            Notifier.newMessage(context, Contacts.nameFor(context, from));
+        } catch (Exception ignore) {
+            // never let notification failure crash the receiver
         }
     }
 }
